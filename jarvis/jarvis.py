@@ -43,20 +43,74 @@ __status__ = 'Beta'
 __version__ = '1.0.0b1'
 
 
-def parse_multiple_args(arguments):
-    arguments = arguments.split(',')
-    return arguments
+class ParseCommas(argparse.Action):
+    """Argparse Action that parses arguments by commas
+    
+    Attributes:
+        
+        option_strings (list): list of str giving command line flags that
+                               call this action
+                               
+        dest (str): Namespace reference to value
+        
+        nargs (bool): True if multiple arguments specified
+        
+        **kwargs (various): optional arguments to pass to super call
+    """
 
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        """Initialize class and spawn self as Base Class w/o nargs
+        
+        This class will "make" nargs by parsing the commas so it only accepts
+        a single string, not a list.
+        """
 
-def io_check(infile, mode='rU'):
-    try:
-        fh = open(infile, mode)
-    except IOError as e:
-        print(e)
-        sys.exit(1)
-    else:
-        fh.close()
-    return infile
+        # Only accept a single value to analyze
+        if nargs is not None:
+            raise ValueError('nargs not allowed for ParseCommas')
+
+            # Call self again but without nargs
+
+        super(ParseCommas, self).__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        """Called by Argparse when user specifies multiple threads
+        
+        Simply asserts that the number of threads requested is greater than 0
+        but not greater than the maximum number of threads the computer
+        can support.
+        
+        Args:
+            
+            parser (ArgumentParser): parser used to generate values
+            
+            namespace (Namespace): parse_args() generated namespace
+            
+            values (str): actual value specified by user
+            
+            option_string (str): argument flag used to call this function
+            
+        Raises:
+            
+            TypeError: if values is not a string
+            
+            ValueError: if threads is less than one or greater than number of
+                        threads available on computer
+        """
+
+        # This try/except should already be taken care of by Argparse
+        try:
+            assert type(values) is str
+        except AssertionError:
+            raise TypeError('{0} is not a string'.format(values))
+
+        try:
+            arguments = filter(None, values.split(','))
+        except AssertionError:
+            raise ValueError('{0} could not be parsed by commas'
+                             .format(values))
+
+        setattr(namespace, self.dest, arguments)
 
 
 def autocomplete(user_prog, data):
@@ -268,8 +322,7 @@ def print_out(line, width=79, initial='', subsequent=''):
 
 def main(args):
     utils = args.database
-    with open(utils, 'rU') as in_h:
-        json_data = json.load(in_h)
+    json_data = json.load(utils)
     args.func(args, json_data)
 
 
@@ -294,7 +347,7 @@ def entry():
     db_parser = argparse.ArgumentParser(add_help=False)
     db_parser.add_argument('-b', '--database', metavar="DB",
                            default="/usr/local/etc/utils.json",
-                           type=argparse.FileType,
+                           type=argparse.FileType('rw'),
                            help='use a custom JSON-formatted database file ['
                                 'default: /usr/local/etc/utils.json]')
 
@@ -311,7 +364,8 @@ def entry():
     category_mode = list_parser.add_argument_group('category viewers')
     exclusive_list = category_mode.add_mutually_exclusive_group()
     exclusive_list.add_argument('-c', '--category',
-                                type=parse_multiple_args,
+                                type=str,
+                                action=ParseCommas,
                                 help='display all entries in the specified '
                                      'categories')
     exclusive_list.add_argument('--categories',
@@ -339,19 +393,21 @@ def entry():
     edit_parser.add_argument('-p', '--prev',
                              metavar='VERSION [,VERSION,...]',
                              dest='previous versions',
-                             type=parse_multiple_args,
+                             type=str,
+                             action=ParseCommas,
                              help='comma-separated list of previous versions '
                                   'with last date used '
                                   '(ex: <version>(to <date>)')
     edit_parser.add_argument('-c', '--commands',
                              metavar='COMMAND [,COMMAND,...]',
-                             type=parse_multiple_args,
+                             type=str,
+                             action=ParseCommas,
                              help='comma-separated list of commands provided '
                                   'by the program')
     edit_parser.add_argument('-t, --categories',
                              dest='categories',
                              metavar='CATEGORY [,CATEGORY,...]',
-                             type=parse_multiple_args,
+                             type=str,action=ParseCommas,
                              help='comma-separated list of categories '
                                   'program is in')
     edit_parser.add_argument('-i', '--installation', metavar='METHOD',
@@ -360,7 +416,8 @@ def entry():
     edit_parser.add_argument('-d', '--depends',
                              metavar='DEP [,DEP,...]',
                              dest='dependencies',
-                             type=parse_multiple_args,
+                             type=str,
+                             action=ParseCommas,
                              help='comma-separated list of program '
                                   'dependencies')
     group_mode = edit_parser.add_argument_group('actions')

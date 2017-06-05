@@ -315,15 +315,39 @@ def sub_edit(args, data):
 
 
 def print_out(line, width=79, initial='', subsequent=''):
+    """Convenience function that wraps output before printing it
+    
+    Args:
+        
+        line (str): string to print
+        
+        width (int): number of characters per line in output
+        
+        initial (str): string to prepend to first line
+        
+        subsequent (str): string to append to each line after first
+        
+    Example:
+        >>> print_out('print this line', width=15, initial='first ', 
+        ... subsequent='not first ')
+        first print
+        not first this
+        not first line
+    """
     output = textwrap.fill(line, width, initial_indent=initial,
                            subsequent_indent=subsequent)
     print(output)
 
 
 def main(args):
-    utils = args.database
-    json_data = json.load(utils)
-    args.func(args, json_data)
+    """Main function that runs actual program based on passed args
+    
+    Args:
+    
+        args (ArgumentParser): args to control program flow
+    """
+
+    args.func(args, json.load(args.database))  # Run function defined by args
 
 
 def entry():

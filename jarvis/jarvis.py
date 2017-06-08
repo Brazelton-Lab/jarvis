@@ -41,7 +41,7 @@ __email__ = 'theonehyer@gmail.com'
 __license__ = 'GPLv3'
 __maintainer__ = 'Alex Hyer'
 __status__ = 'Beta'
-__version__ = '1.0.0b2'
+__version__ = '1.0.0b3'
 
 
 class ParseCommas(argparse.Action):
@@ -114,6 +114,7 @@ class ParseCommas(argparse.Action):
         setattr(namespace, self.dest, arguments)
 
 
+# TODO: Update autocomplete and add tab-complete
 def autocomplete(user_prog, data):
     match = False
     matches = []
@@ -142,6 +143,7 @@ def autocomplete(user_prog, data):
     return match
 
 
+# TODO: Update display_info
 def display_info(first, second):
     col_two_begin = 20
     indent = ' ' * col_two_begin
@@ -169,6 +171,7 @@ def relevant_values(all_args, match, data):
     return given_args
 
 
+# TODO: Update sub_display
 def sub_display(args, data):
     all_args = vars(args)
     program = autocomplete(args.program, data)
@@ -204,6 +207,7 @@ def sub_display(args, data):
         sys.exit(1)
 
 
+# TODO: Update sub_edit and add interactive mode
 def sub_edit(args, data):
     all_args = vars(args)
     if not args.append:

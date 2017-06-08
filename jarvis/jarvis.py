@@ -12,7 +12,7 @@ functionality for editing the database.
 
 Copyright:
     jarvis.py  Manages JSON database to store information on installed software
-    Copyright (C) 2016  Christopher Thornton,  Alex Hyer
+    Copyright (C) 2016  William Brazelton,  Christopher Thornton,  Alex Hyer
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@ from __future__ import print_function
 
 import argparse
 import json
+import os
 import sys
 import textwrap
 
@@ -40,7 +41,7 @@ __email__ = 'theonehyer@gmail.com'
 __license__ = 'GPLv3'
 __maintainer__ = 'Alex Hyer'
 __status__ = 'Beta'
-__version__ = '1.0.0b1'
+__version__ = '1.0.0b2'
 
 
 class ParseCommas(argparse.Action):
@@ -168,57 +169,6 @@ def relevant_values(all_args, match, data):
     return given_args
 
 
-def sub_list(args, data):
-    if args.categories:
-        categories = []
-        for program in sorted(data):
-            try:
-                prog_cat = data[program]["categories"]
-                for cat in prog_cat:
-                    if cat not in categories:
-                        categories.append(cat)
-            except KeyError:
-                pass
-        print('\n'.join(categories))
-    elif args.category:
-        for category in args.category:
-            print()
-            print('-' * len(category))
-            print('{0}'.format(category))
-            print('-' * len(category))
-            exists = False
-            for program in sorted(data):
-                try:
-                    prog_cat = data[program]["categories"]
-                    if category in prog_cat:
-                        print(program)
-                        exists = True
-                except KeyError:
-                    pass
-            if not exists:
-                print('No such category: {0}'.format(category))
-                print('Type use --categories to view possible categories')
-    else:
-        for item in sorted(data):
-            try:
-                category = data[item]["categories"]
-            except KeyError:
-                category = ''
-            if args.ref_dbs:
-                if "db" not in category:
-                    continue
-            else:
-                if "db" in category:
-                    continue
-            version = data[item]["version"]
-            if version:
-                col_one = "{}({}): ".format(item, version)
-            else:
-                col_one = item
-            col_two = data[item]["description"]
-            display_info(col_one, col_two)
-
-
 def sub_display(args, data):
     all_args = vars(args)
     program = autocomplete(args.program, data)
@@ -314,6 +264,84 @@ def sub_edit(args, data):
         out_h.write(json.dumps(data, sort_keys=True))
 
 
+def sub_list(args, data):
+    """Lists available software from data
+
+        Args:
+
+            args (ArgumentParser): args to control function flow
+
+            data (dict): Dictionary containing available software and
+                         metadata about the programs
+    """
+
+    def extract_data(software):
+        """Extracts information from software for printing
+
+        Formats data from program into two columns for terminal display.
+        Note: This function is inside sub_list so it can access data and args.
+
+        Args:
+
+            software (str): string of software to extract data from
+        """
+
+        # Add version to output if possible unless brief is True
+        version = data[software]['version']
+        if args.brief is True:
+            col_one = software
+        elif version:
+            col_one = '{}({}): '.format(software, version)
+        else:
+            col_one = software
+
+        # Add program description to output unless brief is False
+        if args.brief is False:
+            col_two = data[software]['description']
+        else:
+            col_two = ''
+
+        display_info(col_one, col_two)  # Send data for output
+
+    # List available categories
+    if args.list_categories:
+        categories = []
+        for software in sorted(data):
+            try:  # Not the fastest algorithm, but not much data here, so eh
+                program_categories = data[software]['categories']
+                for category in program_categories:
+                    if category not in categories:
+                        categories.append(category)
+            except KeyError:
+                pass  # Skip software if it doesn't have a category
+        print(os.linesep.join(sorted(categories)))
+
+    # List programs in category
+    elif args.categories:
+        for category in args.categories:
+            print()  # Print format header
+            print('-' * 79)
+            print('{0}'.format(category).center(79))
+            print('-' * 79)
+            exists = False  # Track if category found
+            for software in sorted(data):
+                try:  # Not all software will have a category
+                    program_categories = data[software]['categories']
+                    if category in program_categories:
+                        extract_data(software)
+                        exists = True  # At least one software in category
+                except KeyError:
+                    pass
+            if not exists:
+                print('No such category: {0}'.format(category))
+                print('Type use --list_categories to view possible categories')
+
+    # List all software of no other arguments given
+    else:
+        for software in sorted(data):
+            extract_data(software)
+
+
 def print_out(line, width=79, initial='', subsequent=''):
     """Convenience function that wraps output before printing it
     
@@ -387,17 +415,17 @@ def entry():
                                              'programs only.')
     category_mode = list_parser.add_argument_group('category viewers')
     exclusive_list = category_mode.add_mutually_exclusive_group()
-    exclusive_list.add_argument('-c', '--category',
+    exclusive_list.add_argument('-c', '--categories',
                                 type=str,
                                 action=ParseCommas,
                                 help='display all entries in the specified '
                                      'categories')
-    exclusive_list.add_argument('--categories',
+    exclusive_list.add_argument('--list_categories',
                                 action='store_true',
                                 help='display existing categories')
-    exclusive_list.add_argument('--ref_dbs',
-                                action='store_true',
-                                help='display available reference databases')
+    category_mode.add_argument('--brief',
+                               action='store_true',
+                               help='only display program names')
     list_parser.set_defaults(func=sub_list)
 
     # edit-specific arguments
@@ -489,7 +517,6 @@ def entry():
     main(parser.parse_args())
 
     sys.exit(0)
-
 
 if __name__ == '__main__':
     entry()

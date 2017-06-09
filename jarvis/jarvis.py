@@ -41,7 +41,7 @@ __email__ = 'theonehyer@gmail.com'
 __license__ = 'GPLv3'
 __maintainer__ = 'Alex Hyer'
 __status__ = 'Beta'
-__version__ = '1.0.0b3'
+__version__ = '1.0.0b4'
 
 
 class ParseCommas(argparse.Action):
@@ -133,13 +133,13 @@ def autocomplete(user_prog, data):
     elif not match and len(matches) > 1:
         print('Could not unambiguously determine what "{0}" means.'
               .format(user_prog))
-        print('Did you mean one of the following:\n{0}'
-              .format('\n'.join(matches)))
-        sys.exit(0)
+        print('Did you mean one of the following:{0}{1}'
+              .format('\n'.join(matches), os.linesep))
+        sys.exit(1)
     elif not match and len(matches) == 0:
         print('"{0}" did not match anything in the database.'
               .format(user_prog))
-        sys.exit(0)
+        sys.exit(1)
     return match
 
 
@@ -152,6 +152,44 @@ def display_info(first, second):
         print_out(second, initial=indent, subsequent=indent)
     else:
         print_out("{:<20}{}".format(first, second), subsequent=indent)
+
+
+def extract_data(software, data, brief=False):
+    """Extracts information from software for printing
+
+    Formats data from program into two strings. These strings are intended
+    for display_info from jarvis.py.
+
+    Args:
+
+        software (str): string of software to extract data from
+        
+        data (dict): dictionary containing data on software
+        
+        brief (bool): return program version and description if True, 
+                      else return empty string for second value
+                      
+    Returns:
+        tuple: (str, str) first str contains program name and optional version,
+               second str contains program description
+    """
+
+    # Add version to output if possible unless brief is True
+    version = data[software]['version']
+    if brief is True:
+        col_one = software
+    elif version:
+        col_one = '{}({}): '.format(software, version)
+    else:
+        col_one = software
+
+    # Add program description to output unless brief is False
+    if brief is False:
+        col_two = data[software]['description']
+    else:
+        col_two = ''
+
+    return col_one, col_two  # Send data for output
 
 
 def relevant_values(all_args, match, data):
@@ -171,40 +209,39 @@ def relevant_values(all_args, match, data):
     return given_args
 
 
-# TODO: Update sub_display
 def sub_display(args, data):
+    """Displays data on selected software, invoked by "show" on the command line
+
+        Args:
+
+            args (ArgumentParser): args to control function flow
+
+            data (dict): Dictionary containing available software and
+                         metadata about the programs
+    """
+
     all_args = vars(args)
-    program = autocomplete(args.program, data)
-    if program:
-        version = data[program]["version"]
-        if version:
-            col_one = "{}({}): ".format(program, version)
+    software = autocomplete(args.software, data)
+
+    # Print basic software data universal to all software
+    col_one, col_two = extract_data(software, data)
+    display_info(col_one, col_two)
+
+    # Filter through requested args and output if available
+    flags = [arg for arg in all_args if arg in data[software] and
+             all_args[arg] is not None]
+    for flag in sorted(flags):
+        header = flag + ': '
+
+        if isinstance(data[software][flag], list):
+            value = ', '.join(sorted(data[software][flag]))
         else:
-            col_one = program
-        col_two = data[program]["description"]
-        display_info(col_one, col_two)
-        flags = []
-        for arg in all_args:
-            if all_args[arg] in data[program]:
-                flags.append(all_args[arg])
-        for flag in sorted(flags):
-            header = flag + ': '
-            if isinstance(data[program][flag], list):
-                value = ', '.join(sorted(data[program][flag]))
-            else:
-                value = data[program][flag]
-            if value:
-                output = value
-            else:
-                output = 'NA'
-            display_info(header, output)
-    else:
-        output = ("Can not locate \"{}\". Please verify that the program that "
-                  "you are searching for is already installed on the server, "
-                  "and/or not misspelled, by usings \"utils list\""
-                  .format(args.program))
-        print_out(output)
-        sys.exit(1)
+            value = data[software][flag]
+
+        if value == '':
+            value = 'N/A'
+
+        display_info(header, value)
 
 
 # TODO: Update sub_edit and add interactive mode
@@ -279,34 +316,6 @@ def sub_list(args, data):
                          metadata about the programs
     """
 
-    def extract_data(software):
-        """Extracts information from software for printing
-
-        Formats data from program into two columns for terminal display.
-        Note: This function is inside sub_list so it can access data and args.
-
-        Args:
-
-            software (str): string of software to extract data from
-        """
-
-        # Add version to output if possible unless brief is True
-        version = data[software]['version']
-        if args.brief is True:
-            col_one = software
-        elif version:
-            col_one = '{}({}): '.format(software, version)
-        else:
-            col_one = software
-
-        # Add program description to output unless brief is False
-        if args.brief is False:
-            col_two = data[software]['description']
-        else:
-            col_two = ''
-
-        display_info(col_one, col_two)  # Send data for output
-
     # List available categories
     if args.list_categories:
         categories = []
@@ -332,7 +341,9 @@ def sub_list(args, data):
                 try:  # Not all software will have a category
                     program_categories = data[software]['categories']
                     if category in program_categories:
-                        extract_data(software)
+                        col1, col2 = extract_data(software, data,
+                                                  brief=args.brief)
+                        display_info(col1, col2)
                         exists = True  # At least one software in category
                 except KeyError:
                     pass
@@ -343,7 +354,8 @@ def sub_list(args, data):
     # List all software of no other arguments given
     else:
         for software in sorted(data):
-            extract_data(software)
+            col1, col2 = extract_data(software, data, brief=args.brief)
+            display_info(col1, col2)
 
 
 def print_out(line, width=79, initial='', subsequent=''):
@@ -396,8 +408,8 @@ def entry():
                                      argparse.RawDescriptionHelpFormatter)
 
     parent_parser = argparse.ArgumentParser(add_help=False)
-    parent_parser.add_argument('program',
-                               metavar='PROGRAM',
+    parent_parser.add_argument('software',
+                               metavar='SOFTWARE',
                                help='entry name')
 
     db_parser = argparse.ArgumentParser(add_help=False)
@@ -494,7 +506,7 @@ def entry():
     display_parser = subparsers.add_parser('show',
                                            parents=[parent_parser, db_parser],
                                            help='obtain detailed information '
-                                                'about a program or database')
+                                                'about software')
     flag_group = display_parser.add_argument_group('flags')
     flag_group.add_argument('-p', '--prev',
                             action='store_const',

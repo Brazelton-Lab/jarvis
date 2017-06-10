@@ -41,7 +41,7 @@ __email__ = 'theonehyer@gmail.com'
 __license__ = 'GPLv3'
 __maintainer__ = 'Alex Hyer'
 __status__ = 'Beta'
-__version__ = '1.0.0b4'
+__version__ = '1.0.0b5'
 
 
 class ParseCommas(argparse.Action):
@@ -210,7 +210,7 @@ def relevant_values(all_args, match, data):
 
 
 def sub_display(args, data):
-    """Displays data on selected software, invoked by "show" on the command line
+    """Displays data on selected software, invoked by "show" on the CML
 
         Args:
 
@@ -244,29 +244,46 @@ def sub_display(args, data):
         display_info(header, value)
 
 
-# TODO: Update sub_edit and add interactive mode
+# TODO: Add interactive mode
 def sub_edit(args, data):
+    """Edits software in the database, invoked by "edit" on the CML
+
+        Args:
+
+            args (ArgumentParser): args to control function flow
+
+            data (dict): Dictionary containing available software and
+                         metadata about the programs
+    """
+
     all_args = vars(args)
-    if not args.append:
+
+    # Determine if software is in the database
+    if args.append is False:
         match = autocomplete(args.program, data)
     else:
         match = False
-    if args.remove:
-        if match:
-            answer = raw_input("Delete \"{}\" [y, n]? ".format(match))
-            if answer.lower() == 'y':
-                del data[match]
-            elif answer.lower() == 'n':
-                sys.exit(0)
-            else:
-                print("\"{}\" is not a valid option".format(answer))
-                sys.exit(1)
+
+    # Remove software from database
+    if args.remove is True:
+        if match is not False:
+            while True:
+                answer = raw_input('Delete "{0}" [y, n]? '.format(match))
+                if answer.lower() == 'y':
+                    del data[match]
+                    break
+                elif answer.lower() == 'n':
+                    sys.exit(0)
+                else:
+                    print('"{}" is not a valid option'.format(answer))
         else:
-            print_out("\"{}\" does not exists in the database of available "
-                      "programs. Nothing done.".format(args.program))
+            print_out('"{}" does not exists in the database of available '
+                      'programs. Nothing done.'.format(args.software))
             sys.exit(1)
-    elif args.edit:
-        if match:
+
+    # Edit software data in database
+    elif args.edit is True:
+        if match is not False:
             categories = relevant_values(all_args, match, data)
             for category in categories:
                 if isinstance(all_args[category], list) and \
@@ -282,27 +299,28 @@ def sub_edit(args, data):
                 else:
                     data[match][category] = all_args[category]
         else:
-            print_out("\"{}\" does not exists in database. Nothing to edit."
-                      .format(args.program))
+            print_out('"{0}" does not exists in database. Nothing to edit.'
+                      .format(args.software))
+
     elif args.append:
-        if not match:
-            data[args.program] = {"description": "", "version": "",
-                                  "previous versions": [], "commands": [],
-                                  "installation method": "",
-                                  "dependencies": [],
-                                  "categories": []
+        if match is False:
+            data[args.software] = {'description': '', 'version': '',
+                                  'previous versions': [], 'commands': [],
+                                  'installation method': '',
+                                  'dependencies': [],
+                                  'categories': []
                                   }
-            categories = relevant_values(all_args, args.program, data)
+            categories = relevant_values(all_args, args.software, data)
             for category in categories:
                 data[args.program][category] += all_args[category]
         else:
-            print_out("\"{}\" already exists in database. Use \"utils edit -e "
-                      "<program>\" to modify an entry".format(args.program))
+            print_out('"{0}" already exists in database. Use "utils edit -e '
+                      '<program>" to modify an entry'.format(args.software))
             sys.exit(1)
 
-    utils = io_check(args.database, 'w')
-    with open(utils, 'w') as out_h:
-        out_h.write(json.dumps(data, sort_keys=True))
+    # Write changes to the database
+    with open(args.database, 'w') as database_handle:
+        database_handle.write(json.dumps(data, sort_keys=True))
 
 
 def sub_list(args, data):

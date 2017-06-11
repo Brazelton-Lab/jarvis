@@ -29,6 +29,7 @@ Copyright:
 """
 
 from __future__ import print_function
+from __future__ import unicode_literals
 
 import argparse
 import json
@@ -41,7 +42,7 @@ __email__ = 'theonehyer@gmail.com'
 __license__ = 'GPLv3'
 __maintainer__ = 'Alex Hyer'
 __status__ = 'Beta'
-__version__ = '1.0.0b5'
+__version__ = '1.0.0b6'
 
 
 class ParseCommas(argparse.Action):
@@ -145,13 +146,13 @@ def autocomplete(user_prog, data):
 
 # TODO: Update display_info
 def display_info(first, second):
-    col_two_begin = 20
+    col_two_begin = 22
     indent = ' ' * col_two_begin
     if len(first) > col_two_begin:
         print_out(first)
         print_out(second, initial=indent, subsequent=indent)
     else:
-        print_out("{:<20}{}".format(first, second), subsequent=indent)
+        print_out("{:<22}{}".format(first, second), subsequent=indent)
 
 
 def extract_data(software, data, brief=False):
@@ -192,21 +193,39 @@ def extract_data(software, data, brief=False):
     return col_one, col_two  # Send data for output
 
 
-def relevant_values(all_args, match, data):
-    given_args = []
-    approved_values = [
-        'previous versions',
-        'description',
-        'version',
-        'commands',
-        'installation method',
-        'dependencies',
-        'categories'
-    ]
-    for arg in all_args:
-        if arg in approved_values and all_args[arg]:
-            given_args.append(arg)
-    return given_args
+def relevant_values(all_values, approved_values=None):
+    """Filter values from all_values using approved_values
+    
+    In jarvis.py, this function basically exists to filter args by the 
+    default values. The flexibility of approved_values is somewhat pointless
+    as directly using list comprehension saves a function call. 
+    approved_values alues was simply implemented because it was easy to do so
+    and technically diversified thus function's applicability.
+    
+    Args:
+        
+        all_values (list): list of all values to filter
+        
+        approved_values (list): list of values to use as filter
+    
+    Returns:
+        
+        list: list of values from all_values also found in approved_values
+    """
+
+    # Default approved values if none given
+    if approved_values is None:
+        approved_values = [
+            'previous versions',
+            'description',
+            'version',
+            'commands',
+            'installation method',
+            'dependencies',
+            'categories'
+        ]
+
+    return [value for value in all_values if value in approved_values]
 
 
 def sub_display(args, data):
@@ -228,8 +247,8 @@ def sub_display(args, data):
     display_info(col_one, col_two)
 
     # Filter through requested args and output if available
-    flags = [arg for arg in all_args if arg in data[software] and
-             all_args[arg] is not None]
+    flags = [value for arg, value in all_args.iteritems()
+             if value in data[software].keys() and value is not None]
     for flag in sorted(flags):
         header = flag + ': '
 
@@ -260,7 +279,7 @@ def sub_edit(args, data):
 
     # Determine if software is in the database
     if args.append is False:
-        match = autocomplete(args.program, data)
+        match = autocomplete(args.software, data)
     else:
         match = False
 
@@ -278,48 +297,52 @@ def sub_edit(args, data):
                     print('"{}" is not a valid option'.format(answer))
         else:
             print_out('"{}" does not exists in the database of available '
-                      'programs. Nothing done.'.format(args.software))
+                      'software. Nothing done.'.format(args.software))
             sys.exit(1)
 
     # Edit software data in database
     elif args.edit is True:
         if match is not False:
-            categories = relevant_values(all_args, match, data)
-            for category in categories:
-                if isinstance(all_args[category], list) and \
-                                all_args[category][0] == '+':
-                    all_args[category].remove('+')
-                    data[match][category].extend(all_args[category])
-                elif isinstance(all_args[category], list) and \
-                        all_args[category][0] == '-':
-                    data[match][category] = []
-                elif isinstance(all_args[category], str) and \
-                        all_args[category] == '-':
-                    data[match][category] = ''
+            attributes = relevant_values(all_args.keys())
+            for attribute in attributes:
+                if isinstance(all_args[attribute], list) and \
+                                all_args[attribute][0] == '+':
+                    all_args[attribute].remove('+')
+                    data[match][attribute].extend(all_args[attribute])
+                elif isinstance(all_args[attribute], list) and \
+                        all_args[attribute][0] == '-':
+                    data[match][attribute] = []
+                elif isinstance(all_args[attribute], str) and \
+                        all_args[attribute] == '-':
+                    data[match][attribute] = ''
                 else:
-                    data[match][category] = all_args[category]
+                    data[match][attribute] = all_args[attribute]
         else:
             print_out('"{0}" does not exists in database. Nothing to edit.'
                       .format(args.software))
 
     elif args.append:
         if match is False:
-            data[args.software] = {'description': '', 'version': '',
-                                  'previous versions': [], 'commands': [],
-                                  'installation method': '',
-                                  'dependencies': [],
-                                  'categories': []
-                                  }
-            categories = relevant_values(all_args, args.software, data)
-            for category in categories:
-                data[args.program][category] += all_args[category]
+            data[args.software] = {'description': '',
+                                   'version': '',
+                                   'previous versions': [],
+                                   'commands': [],
+                                   'installation method': '',
+                                   'dependencies': [],
+                                   'categories': []
+                                   }
+            attributes = relevant_values(all_args.keys())
+            for attribute in attributes:
+                data[args.software][attribute] += all_args[attribute]
         else:
             print_out('"{0}" already exists in database. Use "utils edit -e '
-                      '<program>" to modify an entry'.format(args.software))
+                      '<software>" to modify an entry'.format(args.software))
             sys.exit(1)
 
-    # Write changes to the database
-    with open(args.database, 'w') as database_handle:
+    # Write changes to the database by rewriting all data
+    database_name = args.database.name
+    args.database.close()
+    with open(database_name, 'w') as database_handle:
         database_handle.write(json.dumps(data, sort_keys=True))
 
 
@@ -331,7 +354,7 @@ def sub_list(args, data):
             args (ArgumentParser): args to control function flow
 
             data (dict): Dictionary containing available software and
-                         metadata about the programs
+                         metadata about the software
     """
 
     # List available categories
@@ -339,15 +362,15 @@ def sub_list(args, data):
         categories = []
         for software in sorted(data):
             try:  # Not the fastest algorithm, but not much data here, so eh
-                program_categories = data[software]['categories']
-                for category in program_categories:
+                software_categories = data[software]['categories']
+                for category in software_categories:
                     if category not in categories:
                         categories.append(category)
             except KeyError:
                 pass  # Skip software if it doesn't have a category
         print(os.linesep.join(sorted(categories)))
 
-    # List programs in category
+    # List software in category
     elif args.categories:
         for category in args.categories:
             print()  # Print format header
@@ -357,8 +380,8 @@ def sub_list(args, data):
             exists = False  # Track if category found
             for software in sorted(data):
                 try:  # Not all software will have a category
-                    program_categories = data[software]['categories']
-                    if category in program_categories:
+                    software_categories = data[software]['categories']
+                    if category in software_categories:
                         col1, col2 = extract_data(software, data,
                                                   brief=args.brief)
                         display_info(col1, col2)
@@ -367,9 +390,9 @@ def sub_list(args, data):
                     pass
             if not exists:
                 print('No such category: {0}'.format(category))
-                print('Type use --list_categories to view possible categories')
+                print('Use --list_categories to view possible categories')
 
-    # List all software of no other arguments given
+    # List all software if no other arguments given
     else:
         for software in sorted(data):
             col1, col2 = extract_data(software, data, brief=args.brief)
@@ -431,9 +454,11 @@ def entry():
                                help='entry name')
 
     db_parser = argparse.ArgumentParser(add_help=False)
-    db_parser.add_argument('-b', '--database', metavar="DB",
+    db_parser.add_argument('-b',
+                           '--database',
+                           metavar="DB",
                            default="/usr/local/etc/utils.json",
-                           type=argparse.FileType('rw'),
+                           type=argparse.FileType('rU'),
                            help='use a custom JSON-formatted database file ['
                                 'default: /usr/local/etc/utils.json]')
 
@@ -444,9 +469,7 @@ def entry():
     # list-specific arguments
     list_parser = subparsers.add_parser('list',
                                         parents=[db_parser],
-                                        help='Display available programs or '
-                                             'databases. Default is to list '
-                                             'programs only.')
+                                        help='Display available software.')
     category_mode = list_parser.add_argument_group('category viewers')
     exclusive_list = category_mode.add_mutually_exclusive_group()
     exclusive_list.add_argument('-c', '--categories',
@@ -459,7 +482,7 @@ def entry():
                                 help='display existing categories')
     category_mode.add_argument('--brief',
                                action='store_true',
-                               help='only display program names')
+                               help='only display software names')
     list_parser.set_defaults(func=sub_list)
 
     # edit-specific arguments
@@ -469,16 +492,17 @@ def entry():
                                              "database entry")
     edit_parser.add_argument('-v', '--version',
                              metavar='VERSION',
-                             help='current version of the program (can be '
-                                  '"null" if no version '
+                             help='current version of the software (can be '
+                                  '"N/A" if no version '
                                   'info available)')
     edit_parser.add_argument('-s', '--synopsis',
                              dest='description',
                              metavar='DESCRITPTION',
-                             help='program description')
+                             help='software description')
     edit_parser.add_argument('-p', '--prev',
-                             metavar='VERSION [,VERSION,...]',
                              dest='previous versions',
+                             metavar='VERSION [,VERSION,...]',
+                             default='',
                              type=str,
                              action=ParseCommas,
                              help='comma-separated list of previous versions '
@@ -486,25 +510,29 @@ def entry():
                                   '(ex: <version>(to <date>)')
     edit_parser.add_argument('-c', '--commands',
                              metavar='COMMAND [,COMMAND,...]',
+                             default='',
                              type=str,
                              action=ParseCommas,
                              help='comma-separated list of commands provided '
-                                  'by the program')
+                                  'by the software if a program')
     edit_parser.add_argument('-t, --categories',
                              dest='categories',
                              metavar='CATEGORY [,CATEGORY,...]',
-                             type=str,action=ParseCommas,
-                             help='comma-separated list of categories '
-                                  'program is in')
-    edit_parser.add_argument('-i', '--installation', metavar='METHOD',
-                             dest='installation method',
-                             help='method used to install the program')
-    edit_parser.add_argument('-d', '--depends',
-                             metavar='DEP [,DEP,...]',
-                             dest='dependencies',
+                             default='',
                              type=str,
                              action=ParseCommas,
-                             help='comma-separated list of program '
+                             help='comma-separated list of categories '
+                                  'software is in')
+    edit_parser.add_argument('-i', '--installation', metavar='METHOD',
+                             dest='installation method',
+                             default='',
+                             help='method used to install the software')
+    edit_parser.add_argument('-d', '--dependencies',
+                             metavar='DEP [,DEP,...]',
+                             default='',
+                             type=str,
+                             action=ParseCommas,
+                             help='comma-separated list of software '
                                   'dependencies')
     group_mode = edit_parser.add_argument_group('actions')
 
@@ -541,11 +569,11 @@ def entry():
     flag_group.add_argument('-i', '--installation',
                             action='store_const',
                             const='installation method',
-                            help='display method used to install program')
+                            help='display method used to install software')
     flag_group.add_argument('-d', '--depends',
                             action='store_const',
                             const='dependencies',
-                            help='list program dependencies')
+                            help='list software dependencies')
     display_parser.set_defaults(func=sub_display)
 
     main(parser.parse_args())

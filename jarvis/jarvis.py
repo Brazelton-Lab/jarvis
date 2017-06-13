@@ -42,7 +42,7 @@ __email__ = 'theonehyer@gmail.com'
 __license__ = 'GPLv3'
 __maintainer__ = 'Alex Hyer'
 __status__ = 'Beta'
-__version__ = '1.0.0b6'
+__version__ = '1.0.0b7'
 
 
 class ParseCommas(argparse.Action):
@@ -144,15 +144,27 @@ def autocomplete(user_prog, data):
     return match
 
 
-# TODO: Update display_info
-def display_info(first, second):
-    col_two_begin = 22
-    indent = ' ' * col_two_begin
-    if len(first) > col_two_begin:
+def display_info(first, second, col_one_width=22):
+    """Convenience function to print data into two columns
+    
+    Note: Uses print_out from jarvis.py.
+    
+    Args:
+         
+         first (unicode): data to print into first column
+         
+         second (unicode): data to print into second column
+         
+         col_one_width (int): number of terminal columns for column one
+    """
+
+    indent = ' ' * col_one_width
+    if len(first) > col_one_width:
         print_out(first)
         print_out(second, initial=indent, subsequent=indent)
     else:
-        print_out("{:<22}{}".format(first, second), subsequent=indent)
+        print_out("{0:<{1}}{2}".format(first, col_one_width, second),
+                  subsequent=indent)
 
 
 def extract_data(software, data, brief=False):
@@ -163,7 +175,7 @@ def extract_data(software, data, brief=False):
 
     Args:
 
-        software (str): string of software to extract data from
+        software (unicode): string of software to extract data from
         
         data (dict): dictionary containing data on software
         
@@ -171,8 +183,8 @@ def extract_data(software, data, brief=False):
                       else return empty string for second value
                       
     Returns:
-        tuple: (str, str) first str contains program name and optional version,
-               second str contains program description
+        tuple: (unicode, unicode) first str contains program name and optional 
+               version, second str contains program description
     """
 
     # Add version to output if possible unless brief is True
@@ -204,9 +216,9 @@ def relevant_values(all_values, approved_values=None):
     
     Args:
         
-        all_values (list): list of all values to filter
+        all_values (list): list of unicode all values to filter
         
-        approved_values (list): list of values to use as filter
+        approved_values (list): list of unicode of values to use as filter
     
     Returns:
         
@@ -404,13 +416,13 @@ def print_out(line, width=79, initial='', subsequent=''):
     
     Args:
         
-        line (str): string to print
+        line (unicode): string to print
         
         width (int): number of characters per line in output
         
-        initial (str): string to prepend to first line
+        initial (unicode): string to prepend to first line
         
-        subsequent (str): string to append to each line after first
+        subsequent (unicode): string to append to each line after first
         
     Example:
         >>> print_out('print this line', width=15, initial='first ', 

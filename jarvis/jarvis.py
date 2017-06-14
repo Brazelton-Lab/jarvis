@@ -42,7 +42,7 @@ __email__ = 'theonehyer@gmail.com'
 __license__ = 'GPLv3'
 __maintainer__ = 'Alex Hyer'
 __status__ = 'Beta'
-__version__ = '1.0.0b7'
+__version__ = '1.0.0b8'
 
 
 class ParseCommas(argparse.Action):
@@ -116,35 +116,46 @@ class ParseCommas(argparse.Action):
 
 
 # TODO: Update autocomplete and add tab-complete
-def autocomplete(user_prog, data):
-    match = False
-    matches = []
-    for program in data:
-        user_prog_lower = user_prog.lower()
-        data_prog_lower = program.lower()
-        if user_prog_lower == data_prog_lower:
-            match = program
-            break
-        elif data_prog_lower.startswith(user_prog_lower):
-            matches.append(program)
-    if not match and len(matches) == 1:
-        print_out('Assuming "{0}" meant "{1}"'.format(user_prog, matches[0]))
-        print()
-        match = matches[0]
-    elif not match and len(matches) > 1:
-        print('Could not unambiguously determine what "{0}" means.'
-              .format(user_prog))
-        print('Did you mean one of the following:{0}{1}'
-              .format('\n'.join(matches), os.linesep))
-        sys.exit(1)
-    elif not match and len(matches) == 0:
-        print('"{0}" did not match anything in the database.'
-              .format(user_prog))
-        sys.exit(1)
-    return match
+def autocomplete(query, possibilities, delta=0.9):
+    """Attempts to figure out what possibility the query is
+    
+    Args:
+        
+        query (unicode): query to attempt to complete
+        
+        possibilities (list): list of unicodes of possible answers for query
+        
+        delta (float): minimum delta similarity between query and
+                       any given possibility for possibility to be considered.
+                       Delta used by difflib.get_close_matches().
+        
+    Returns:
+        unicode: Empty string if no match, else returns best guess of correct
+                 answer
+    """
+
+    def longest_common_beginning(words, last_letter='', position=0):
+        letter = [word[position] for word in words]
+        if all(l == letter[0] for l in letter) is True:
+            last_letter += longest_common_beginning(words,
+                                                    last_letter=letter[0],
+                                                    position=position+1)
+            return last_letter
+        else:
+            return last_letter
+
+    # Don't waste time for exact matches
+    if query in possibilities:
+        return query
+
+    # Complete query as much as possible
+    options = [word for word in possibilities if word.startswith(query)]
+    query = longest_common_beginning(options)
+
+    return ''
 
 
-def display_info(first, second, col_one_width=22):
+def display_info(first, second, second_col_start=22):
     """Convenience function to print data into two columns
     
     Note: Uses print_out from jarvis.py.
@@ -155,15 +166,17 @@ def display_info(first, second, col_one_width=22):
          
          second (unicode): data to print into second column
          
-         col_one_width (int): number of terminal columns for column one
+         second_col_start (int): number of terminal columns before column two
+                                 starts. If first is longer than this argument,
+                                 second will begin on a new line.
     """
 
-    indent = ' ' * col_one_width
-    if len(first) > col_one_width:
+    indent = ' ' * second_col_start
+    if len(first) > second_col_start:
         print_out(first)
         print_out(second, initial=indent, subsequent=indent)
     else:
-        print_out("{0:<{1}}{2}".format(first, col_one_width, second),
+        print_out("{0:<{1}}{2}".format(first, second_col_start, second),
                   subsequent=indent)
 
 
@@ -252,7 +265,11 @@ def sub_display(args, data):
     """
 
     all_args = vars(args)
-    software = autocomplete(args.software, data)
+    software = autocomplete(args.software, data.keys())
+
+    if software == '':
+        print_out('"{0}" not in database. Try using "jarvis list --brief".')
+        sys.exit(1)
 
     # Print basic software data universal to all software
     col_one, col_two = extract_data(software, data)
@@ -291,7 +308,7 @@ def sub_edit(args, data):
 
     # Determine if software is in the database
     if args.append is False:
-        match = autocomplete(args.software, data)
+        match = autocomplete(args.software, data.keys())
     else:
         match = False
 

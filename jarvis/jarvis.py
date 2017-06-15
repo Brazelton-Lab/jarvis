@@ -32,6 +32,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import argparse
+from difflib import get_close_matches
 import json
 import os
 import sys
@@ -42,7 +43,11 @@ __email__ = 'theonehyer@gmail.com'
 __license__ = 'GPLv3'
 __maintainer__ = 'Alex Hyer'
 __status__ = 'Beta'
-__version__ = '1.0.0b9'
+__version__ = '1.0.0b10'
+
+
+# TODO: Add tab-complete
+
 
 class ParseCommas(argparse.Action):
     """Argparse Action that parses arguments by commas
@@ -114,8 +119,7 @@ class ParseCommas(argparse.Action):
         setattr(namespace, self.dest, arguments)
 
 
-# TODO: Update autocomplete and add tab-complete
-def autocomplete(query, possibilities, delta=0.9):
+def autocomplete(query, possibilities, delta=0.75):
     """Attempts to figure out what possibility the query is
     
     Args:
@@ -129,49 +133,14 @@ def autocomplete(query, possibilities, delta=0.9):
                        Delta used by difflib.get_close_matches().
         
     Returns:
-        unicode: Empty string if no match, else returns best guess of correct
-                 answer
+        unicode: best guess of correct answer
+                 
+    Example:
+    >>> autocomplete('bowtei', ['bowtie2', 'bot']
+    'bowtie2'
     """
 
-    def max_substring(words, last_letter='', position=0):
-        """Finds max substring shared by all strings starting at position
-        
-        Args:
-            
-            words (list): list of unicode of all words to compare
-            
-            last_letter (unicode): letter of last common letter, only for use
-                                   internally unless you really know what 
-                                   you are doing
-            
-            position (int): starting position in each word to begin analyzing
-                            for substring
-                            
-        Returns:
-            unicode: max string common to all words
-            
-        Examples:
-        >>> max_substring(['aaaa', 'aaab', 'aaac'])
-        'aaa'
-        >>> max_substring(['abbb', 'bbbb', 'cbbb'], position=1)
-        'bbb'
-        >>> max_substring(['abc', 'bcd', 'cde'])
-        ''
-        """
-
-        # If end of word is reached, begin reconstructing the substring
-        try:
-            letter = [word[position] for word in words]
-        except IndexError:
-            return last_letter
-
-        # Recurse if position matches, else begin reconstructing the substring
-        if all(l == letter[0] for l in letter) is True:
-            last_letter += max_substring(words, last_letter=letter[0],
-                                         position=position+1)
-            return last_letter
-        else:
-            return last_letter
+    possibilities = [possibility.lower() for possibility in possibilities]
 
     # Don't waste time for exact matches
     if query in possibilities:
@@ -179,9 +148,14 @@ def autocomplete(query, possibilities, delta=0.9):
 
     # Complete query as much as possible
     options = [word for word in possibilities if word.startswith(query)]
-    query = max_substring(options)
+    if len(options) > 0:
+        possibilities = options
+        query = max_substring(options)
 
-    return ''
+    # Identify possible matches and return best match
+    matches = get_close_matches(query, possibilities, cutoff=delta)
+
+    return matches[0]
 
 
 def display_info(first, second, second_col_start=22):
@@ -245,6 +219,47 @@ def extract_data(software, data, brief=False):
         col_two = ''
 
     return col_one, col_two  # Send data for output
+
+
+def max_substring(words, last_letter='', position=0):
+    """Finds max substring shared by all strings starting at position
+
+    Args:
+
+        words (list): list of unicode of all words to compare
+
+        last_letter (unicode): letter of last common letter, only for use
+                               internally unless you really know what 
+                               you are doing
+
+        position (int): starting position in each word to begin analyzing
+                        for substring
+
+    Returns:
+        unicode: max string common to all words
+
+    Examples:
+    >>> max_substring(['aaaa', 'aaab', 'aaac'])
+    'aaa'
+    >>> max_substring(['abbb', 'bbbb', 'cbbb'], position=1)
+    'bbb'
+    >>> max_substring(['abc', 'bcd', 'cde'])
+    ''
+    """
+
+    # If end of word is reached, begin reconstructing the substring
+    try:
+        letter = [word[position] for word in words]
+    except IndexError:
+        return last_letter
+
+    # Recurse if position matches, else begin reconstructing the substring
+    if all(l == letter[0] for l in letter) is True:
+        last_letter += max_substring(words, last_letter=letter[0],
+                                     position=position + 1)
+        return last_letter
+    else:
+        return last_letter
 
 
 def relevant_values(all_values, approved_values=None):
@@ -380,7 +395,11 @@ def sub_edit(args, data):
                       .format(args.software))
 
     elif args.append:
-        if match is False:
+        if args.software in data.keys():
+            print_out('"{0}" already exists in database. Use "utils edit -e '
+                      '<software>" to modify an entry'.format(args.software))
+            sys.exit(1)
+        else:
             data[args.software] = {'description': '',
                                    'version': '',
                                    'previous versions': [],
@@ -392,10 +411,6 @@ def sub_edit(args, data):
             attributes = relevant_values(all_args.keys())
             for attribute in attributes:
                 data[args.software][attribute] += all_args[attribute]
-        else:
-            print_out('"{0}" already exists in database. Use "utils edit -e '
-                      '<software>" to modify an entry'.format(args.software))
-            sys.exit(1)
 
     # Write changes to the database by rewriting all data
     database_name = args.database.name

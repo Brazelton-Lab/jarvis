@@ -11,7 +11,7 @@ __email__ = 'theonehyer@gmail.com'
 __license__ = 'GPLv3'
 __maintainer__ = 'Alex Hyer'
 __status__ = 'Alpha'
-__version__ = '2.0.0a1'
+__version__ = '2.0.0a2'
 
 
 class ParseCommas(argparse.Action):
@@ -80,3 +80,44 @@ class ParseCommas(argparse.Action):
                              .format(value))
 
         setattr(namespace, self.dest, arguments)
+
+
+def max_substring(words, last_letter='', position=0):
+    """Finds max substring shared by all strings starting at position
+
+    Args:
+
+        words (list): list of unicode of all words to compare
+
+        last_letter (unicode): letter of last common letter, only for use
+                               internally unless you really know what
+                               you are doing
+
+        position (int): starting position in each word to begin analyzing
+                        for substring
+
+    Returns:
+        unicode: max string common to all words
+
+    Examples:
+    >>> max_substring(['aaaa', 'aaab', 'aaac'])
+    'aaa'
+    >>> max_substring(['abbb', 'bbbb', 'cbbb'], position=1)
+    'bbb'
+    >>> max_substring(['abc', 'bcd', 'cde'])
+    ''
+    """
+
+    # If end of word is reached, begin reconstructing the substring
+    try:
+        letter = [word[position] for word in words]
+    except IndexError:
+        return last_letter
+
+    # Recurse if position matches, else begin reconstructing the substring
+    if all(l == letter[0] for l in letter) is True:
+        last_letter += max_substring(words, last_letter=letter[0],
+                                     position=position + 1)
+        return last_letter
+    else:
+        return last_letter
